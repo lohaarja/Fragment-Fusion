@@ -299,31 +299,41 @@ def main():
     with st.sidebar:
         st.header("Input Settings")
         
-        # Folder input
-        st.subheader("Select Folder")
-        folder_path = st.text_input(
-            "Folder Path",
-            placeholder="Enter the path to your image folder...",
-            help="Enter the full path to the folder containing puzzle images"
+        # File uploader for cloud deployment
+        st.subheader("Upload Images")
+        uploaded_files = st.file_uploader(
+            "Choose image files",
+            type=['jpg', 'jpeg', 'png'],
+            accept_multiple_files=True,
+            help="Upload all the fragmented images you want to reconstruct"
         )
         
-        # Scan button
-        if st.button("🔍 Scan Folder for Images", use_container_width=True):
-            if folder_path and os.path.exists(folder_path):
-                st.session_state.selected_folder = folder_path
-                image_files = scan_folder_for_images(folder_path)
-                st.session_state.image_files = image_files
-                # Reset number to solve when new folder is scanned
-                st.session_state.num_to_solve = min(3, len(image_files))
-                st.session_state.images_to_show = 5
-                st.session_state.results_to_show = 5
-                st.success(f"Found {len(image_files)} images in folder")
-            else:
-                st.error("Please enter a valid folder path")
+        # Process uploaded files
+        if uploaded_files:
+            # Save uploaded files to a temporary directory
+            temp_dir = "temp_uploads"
+            os.makedirs(temp_dir, exist_ok=True)
+            
+            # Clear previous files
+            for file in os.listdir(temp_dir):
+                os.remove(os.path.join(temp_dir, file))
+            
+            # Save new files
+            for uploaded_file in uploaded_files:
+                with open(os.path.join(temp_dir, uploaded_file.name), "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+            
+            st.session_state.selected_folder = temp_dir
+            image_files = scan_folder_for_images(temp_dir)
+            st.session_state.image_files = image_files
+            st.session_state.num_to_solve = min(3, len(image_files))
+            st.session_state.images_to_show = 5
+            st.session_state.results_to_show = 5
+            st.success(f"📁 {len(image_files)} images ready for processing")
         
         # Display folder info
         if st.session_state.selected_folder:
-            st.info(f"Selected folder: {st.session_state.selected_folder}")
+            st.info(f"Images loaded: {len(st.session_state.image_files)} files")
         
         # Number of images to solve
         if st.session_state.image_files:
@@ -356,24 +366,20 @@ def main():
     
     # Main content area
     if not st.session_state.image_files:
-        st.info("👈 Please enter a folder path and click 'Scan Folder for Images' to get started.")
+        st.info("👈 Please upload images using the file uploader in the sidebar to get started.")
         st.markdown("""
         ### How to use Fragment Fusion:
-        1. Enter the full path to your image folder in the sidebar
-        2. Click 'Scan Folder for Images' to load the images
-        3. Select how many images you want to solve
-        4. Click 'Start Fragment Fusion' to begin reconstructing fragments
+        1. Upload your fragmented images using the file uploader in the sidebar
+        2. Select how many images you want to solve
+        3. Click 'Start Fragment Fusion' to begin reconstructing fragments
+        4. View results and download the reconstructed images and CSV file
+        
+        **Supported formats:** JPG, JPEG, PNG
         """)
         return
     
-    # Display folder info
-    if st.session_state.selected_folder:
-        st.subheader(f"📁 Folder: {os.path.basename(st.session_state.selected_folder)}")
-        st.text(f"Full path: {st.session_state.selected_folder}")
-        st.info(f"Found {len(st.session_state.image_files)} images in folder")
-    
     # Show images with "Show More" functionality
-    st.subheader("📷 Images Found")
+    st.subheader("📷 Images Ready for Processing")
     
     # Calculate how many images to display
     total_images = len(st.session_state.image_files)
@@ -452,14 +458,6 @@ def main():
             df = pd.DataFrame(results)
             st.session_state.csv_data = df
             csv = df.to_csv(index=False)
-            
-            # Save to the selected folder
-            output_path = os.path.join(st.session_state.selected_folder, output_filename)
-            try:
-                df.to_csv(output_path, index=False)
-                st.success(f"📁 CSV saved to: {output_path}")
-            except Exception as e:
-                st.error(f"Error saving CSV to folder: {e}")
             
             # Download button for CSV
             st.download_button(
